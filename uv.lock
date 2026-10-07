@@ -162,6 +162,8 @@ version = "0.5.0"
 source = { editable = "." }
 dependencies = [
     { name = "antlr4-python3-runtime" },
+    { name = "jinja2" },
+    { name = "pyyaml" },
 ]
 
 [package.dev-dependencies]
@@ -172,7 +174,11 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "antlr4-python3-runtime", specifier = ">=4.13.0" }]
+requires-dist = [
+    { name = "antlr4-python3-runtime", specifier = ">=4.13.0" },
+    { name = "jinja2", specifier = ">=3.1.0" },
+    { name = "pyyaml", specifier = ">=6.0" },
+]
 
 [package.metadata.requires-dev]
 dev = [

@@ -26,7 +26,8 @@ def _build_parser() -> argparse.ArgumentParser:
         choices=sorted(GENERATORS.keys()),
         help="Generator to use: 'mermaid' (Mermaid class/context-map diagrams), "
         "'plantuml' (PlantUML class/component diagrams), "
-        "'generic' (arbitrary text via Jinja2 template).",
+        "'generic' (arbitrary text via Jinja2 template), "
+        "'yaml' (full model dump in YAML).",
     )
     generate.add_argument("-o", "--outputDir", required=True, help="Output directory.")
     generate.add_argument(
