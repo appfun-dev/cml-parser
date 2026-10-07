@@ -144,10 +144,10 @@ Domain InsuranceDomain {
 // @stakeholder:employee
 UserStory Customers {
 	As a "Lakeside Mutual employee"
-		I want to create a "CustomerProfile"
-		I want to update a "CustomerProfile"
-		I want to create an "Address"
-		I want to update an "Address"
+		I want to "create" a "CustomerProfile"
+		I want to "update" a "CustomerProfile"
+		I want to "create" an "Address"
+		I want to "update" an "Address"
 	so that "I can manage the personal data about the individual customers (e.g., name, email, current address, etc.)."
 }
 

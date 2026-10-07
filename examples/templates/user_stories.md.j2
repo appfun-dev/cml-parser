@@ -1,0 +1,22 @@
+# User Stories
+
+Generated from: `{{ filename }}`
+
+{% for us in model.user_stories %}
+## {{ us.name }}
+{% if us.role %}**As a** {{ us.role }}
+{% endif %}
+{% for f in us.features %}
+- {{ f }}
+{% endfor %}
+{% if us.benefit %}**So that** {{ us.benefit }}
+{% endif %}
+{% if us.split_by %}_Split by: {{ us.split_by }}_
+{% endif %}
+{% if us.promoted_values %}_Promotes: {{ us.promoted_values | join(", ") }}_
+{% endif %}
+{% if us.harmed_values %}_Harms: {{ us.harmed_values | join(", ") }}_
+{% endif %}
+{% if us._doc_tags %}_Tags: {% for k, v in us._doc_tags.items() %}{{ k }}={{ v | join(", ") }}{% if not loop.last %}, {% endif %}{% endfor %}_
+{% endif %}
+{% endfor %}

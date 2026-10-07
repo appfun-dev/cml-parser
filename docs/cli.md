@@ -37,7 +37,7 @@ PYTHONPATH=src python -m cml_parser.cli --help
 
 ```text
 cml validate -i <file.cml>
-cml generate -i <file.cml> -g <mermaid|plantuml|generic> -o <dir> [-t template.j2] [-f name] [--tags expr]
+cml generate -i <file.cml> -g <mermaid|plantuml|generic|yaml> -o <dir> [-t template.j2] [-f name] [--tags expr]
 ```
 
 ### validate
@@ -76,6 +76,17 @@ Generates [PlantUML](https://plantuml.com/) diagrams with the same structure:
 cml generate -i model.cml -g plantuml -o ./out
 ```
 
+### generate -g yaml
+
+Dumps the full parsed model to a single YAML document
+(`<input-stem>.yaml`, overridable with `-f`). Objects referenced more than
+once (resolved `*_refs` links, back-references) are emitted as
+`$ref: <Class>:<name>` markers to keep the output finite.
+
+```bash
+cml generate -i model.cml -g yaml -o ./out
+```
+
 ### generate -g generic (Jinja2)
 
 Renders an arbitrary text file with a [Jinja2](https://jinja.palletsprojects.com/)
@@ -102,6 +113,7 @@ Ready-made templates live in `examples/templates/`:
 - `glossary.md.j2` — domain glossary (domains, contexts with comments and
   tags, aggregates, context maps)
 - `tagged_objects.md.j2` — report of all objects carrying a given doc tag
+- `user_stories.md.j2` — user stories with role, features, benefit and tags
 
 ## Doc comments and tags
 
