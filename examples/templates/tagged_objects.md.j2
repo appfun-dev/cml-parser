@@ -1,0 +1,21 @@
+{# Search objects by doc tag. Adjust KEY/VALUE below or override with
+   a different template invocation. #}
+{% set key = 'stakeholder' %}
+{% set value = 'employee' %}
+{% set found = model.find_tagged(key, value) %}
+# Objects tagged `@{{ key }}:{{ value }}`
+
+Source: `{{ filename }}` — {{ found | length }} match(es)
+
+{% for kind, obj in found %}
+## {{ kind }}: {{ obj.name }}
+{% if obj.leading_comment %}
+> {{ obj.leading_comment | replace('\n', ' ') }}
+{% endif %}
+| Property | Value |
+|----------|-------|
+| Type | `{{ kind }}` |
+| Name | `{{ obj.name }}` |
+| Tags | {% for k, values in obj._doc_tags.items() %}`@{{ k }}:{{ values | join(',') }}` {% endfor %} |
+
+{% endfor %}

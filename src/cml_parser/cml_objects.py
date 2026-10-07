@@ -1149,6 +1149,84 @@ class CML:
     def get_use_case(self, use_case_name: str) -> Optional[UseCase]:
         return next((uc for uc in self.use_cases if uc.name == use_case_name), None)
 
+    def find_tagged(self, key: str, value: Optional[str] = None) -> List[tuple]:
+        """Find all tagged objects in the model tree.
+
+        Returns a list of (kind, object) tuples where kind is the class
+        name (e.g. 'Context', 'Aggregate', 'Entity'). If value is None,
+        matches any object having the tag key regardless of value.
+        """
+        results: List[tuple] = []
+
+        def visit(obj: Any) -> None:
+            if not hasattr(obj, "_doc_tags"):
+                return
+            matched = (
+                key in obj._doc_tags
+                if value is None
+                else obj.has_tag(key, value)
+            )
+            if matched:
+                results.append((type(obj).__name__, obj))
+
+        def visit_aggregate(agg: 'Aggregate') -> None:
+            visit(agg)
+            for child in [
+                *agg.entities,
+                *agg.value_objects,
+                *agg.domain_events,
+                *agg.command_events,
+                *agg.data_transfer_objects,
+                *agg.enums,
+                *agg.services,
+                *agg.repositories,
+                *agg.resources,
+                *agg.consumers,
+                *agg.basic_types,
+            ]:
+                visit(child)
+
+        for domain in self.domains:
+            visit(domain)
+            for sd in domain.subdomains:
+                visit(sd)
+        for cm in self.context_maps:
+            visit(cm)
+        for ctx in self.contexts:
+            visit(ctx)
+            for agg in ctx.aggregates:
+                visit_aggregate(agg)
+            for child in [*ctx.services, *ctx.resources, *ctx.consumers]:
+                visit(child)
+            for module in ctx.modules:
+                visit(module)
+                for agg in module.aggregates:
+                    visit_aggregate(agg)
+                for obj in module.domain_objects:
+                    visit(obj)
+            if ctx.application:
+                visit(ctx.application)
+                for child in [
+                    *ctx.application.command_events,
+                    *ctx.application.domain_events,
+                    *ctx.application.services,
+                ]:
+                    visit(child)
+        for uc in self.use_cases:
+            visit(uc)
+        for us in self.user_stories:
+            visit(us)
+        for vr in self.value_registers:
+            visit(vr)
+        for trait in self.traits:
+            visit(trait)
+        for app in self.tactic_applications:
+            visit(app)
+            for obj in app.domain_objects:
+                visit(obj)
+
+        return results
+
     def __repr__(self):
         filename = self.parse_results.filename if self.parse_results else "unknown"
         

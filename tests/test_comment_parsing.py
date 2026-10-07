@@ -147,6 +147,47 @@ BoundedContext Shop {
     assert svc.get_tag("layer") == "application"
 
 
+def test_find_tagged_searches_all_object_types():
+    cml = parse_text("""
+// @stakeholder:employee
+Domain HR {
+    // @stakeholder:manager
+    Subdomain People { type CORE_DOMAIN }
+}
+
+BoundedContext CustomerContext {
+    // @stakeholder:employee
+    Aggregate Customers {
+        // @stakeholder:customer
+        Entity Customer {
+            String name
+        }
+        // @stakeholder:employee
+        Entity Employee {
+            String email
+        }
+    }
+    // @stakeholder:employee
+    Service HrService {
+        void onboard();
+    }
+}
+""")
+    results = cml.find_tagged("stakeholder", "employee")
+    kinds_names = {(kind, obj.name) for kind, obj in results}
+    assert ("Domain", "HR") in kinds_names
+    assert ("Aggregate", "Customers") in kinds_names
+    assert ("Entity", "Employee") in kinds_names
+    assert ("Service", "HrService") in kinds_names
+    assert ("Context", "CustomerContext") in kinds_names  # via inner comment
+    assert ("Entity", "Customer") not in kinds_names
+
+    # key-only search matches regardless of value
+    all_stakeholders = cml.find_tagged("stakeholder")
+    names = {obj.name for _, obj in all_stakeholders}
+    assert {"HR", "People", "Customers", "Customer", "Employee", "HrService"} <= names
+
+
 def test_object_without_comments_has_empty_tags():
     cml = parse_text("""
 BoundedContext Plain {
