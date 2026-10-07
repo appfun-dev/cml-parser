@@ -141,6 +141,7 @@ Domain InsuranceDomain {
 }
 
 /* The manually written user stories for the Lakeside Mutual project: */
+// @stakeholder:employee
 UserStory Customers {
 	As a "Lakeside Mutual employee"
 		I want to create a "CustomerProfile"
@@ -150,12 +151,14 @@ UserStory Customers {
 	so that "I can manage the personal data about the individual customers (e.g., name, email, current address, etc.)."
 }
 
+// @stakeholder:InsuranceCompany
 UserStory InteractionLog {
 	As an "Insurance Company"
 		I want to "log" a "CustomerInteraction"
 	so that "I can track all customer requests and interactions between my employees and the customers."
 }
 
+// @stakeholder:customer
 UserStory SelfService {
 	As a "Customer"
 		I want to create a "CustomerLogin"
@@ -164,6 +167,7 @@ UserStory SelfService {
 	so that "I can report address changes and request insurance quotes independently and without the help of an insurance employee."
 }
 
+// @stakeholder:employee
 UserStory Policies {
 	As an "Lakeside Mutual employee"
 		I want to "answer" an "InsuranceQuoteRequest"
@@ -173,6 +177,7 @@ UserStory Policies {
 	so that "I can manage the customers insurances/policies and respond to customer requests."
 }
 
+// @stakeholder:employee
 UserStory RiskAssessment {
 	As a "Lakeside Mutual employee"
 		I want to "download" a "CustomerDataReport"

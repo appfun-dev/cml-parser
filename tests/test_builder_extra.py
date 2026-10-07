@@ -45,7 +45,7 @@ def test_builder_covers_modules_usecases_and_values():
     }
 
     Domain D {
-      Subdomain S type SUPPORTING_DOMAIN { domainVisionStatement = "Vision" }
+      Subdomain S { type SUPPORTING_DOMAIN domainVisionStatement = "Vision" }
     }
 
     UseCase Pay {

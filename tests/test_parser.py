@@ -234,9 +234,9 @@ def test_global_context_queries(tmp_path):
 def test_domain_subdomain_types(tmp_path):
     text = """
     Domain MyDomain {
-        Subdomain Core type CORE_DOMAIN {}
-        Subdomain Supp type SUPPORTING_DOMAIN {}
-        Subdomain Gen type GENERIC_SUBDOMAIN {}
+        Subdomain Core { type CORE_DOMAIN }
+        Subdomain Supp { type SUPPORTING_DOMAIN }
+        Subdomain Gen { type GENERIC_SUBDOMAIN }
     }
     """
     file_path = tmp_path / "domain_types.cml"

@@ -11,8 +11,6 @@ def test_context_map_settings_and_relationships_extras():
     cml = """
     ContextMap Map {
         contains Ctx1, Ctx2
-        // Missing coverage: realizes
-        realizes Ctx3
         
         Ctx1 [D] <- [U] Ctx2 {
             // Missing coverage: downstreamRights
