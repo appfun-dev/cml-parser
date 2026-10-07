@@ -1,0 +1,63 @@
+# Domain Glossary
+
+Generated from: `{{ filename }}`
+
+{% if model.domains %}
+## Domains
+{% for domain in model.domains %}
+### {{ domain.name }}
+{% if domain.vision %}> {{ domain.vision }}
+{% endif %}
+{% for sd in domain.subdomains %}
+- **{{ sd.name }}** ({{ sd.type.value }}){% if sd.vision %} — {{ sd.vision }}{% endif %}
+
+{% endfor %}
+{% endfor %}
+{% endif %}
+## Bounded Contexts
+{% for ctx in model.contexts %}
+### {{ ctx.name }}
+{% if ctx.leading_comment %}
+{{ ctx.leading_comment }}
+{% endif %}
+{% if ctx._doc_tags %}
+| Tag | Values |
+|-----|--------|
+{% for key, values in ctx._doc_tags.items() %}
+| `@{{ key }}` | {{ values | join(', ') }} |
+{% endfor %}
+{% endif %}
+{% if ctx.vision %}**Vision:** {{ ctx.vision }}
+{% endif %}
+{% for agg in ctx.aggregates %}
+#### Aggregate: {{ agg.name }}
+{% if agg.responsibilities %}Responsibilities: {{ agg.responsibilities }}
+{% endif %}
+{% for ent in agg.entities %}
+- **{{ ent.name }}**{% if ent.is_aggregate_root %} (root){% endif %}
+{%- if ent.leading_comment %} — {{ ent.leading_comment | replace('\n', ' ') }}{% endif %}
+
+{% for attr in ent.attributes %}
+  - `{{ attr.type }} {{ attr.name }}`{% if attr.is_key %} 🔑{% endif %}
+
+{% endfor %}
+{% endfor %}
+{% for enum in agg.enums %}
+- enum **{{ enum.name }}**: {{ enum.values | join(', ') }}
+{% endfor %}
+{% for svc in agg.services %}
+- service **{{ svc.name }}**: {% for op in svc.operations %}`{{ op.name }}({{ op.parameters | map(attribute='name') | join(', ') }})`{% if not loop.last %}, {% endif %}{% endfor %}
+{% endfor %}
+{% endfor %}
+{% endfor %}
+{% if model.context_maps %}
+## Context Maps
+{% for cm in model.context_maps %}
+### {{ cm.name }}
+{% for rel in cm.relationships %}
+- `{{ rel.left.name }}` → `{{ rel.right.name }}` : **{{ rel.type }}**
+{%- if rel.upstream_roles %} (upstream: {{ rel.upstream_roles | join(', ') }}{% if rel.downstream_roles %}, downstream: {{ rel.downstream_roles | join(', ') }}{% endif %}){% endif %}
+
+{% endfor %}
+{% endfor %}
+{% endif %}
