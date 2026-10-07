@@ -14,12 +14,15 @@ from cml_parser.tag_filter import TagExpressionError, evaluate
 TAGGED_CML = """
 // @stakeholder:employee @domain:hr
 BoundedContext HrContext {
+    // @stakeholder:employee
     Aggregate Employees {
+        // core employee data
+
         // @stakeholder:employee @pii:true
         Entity Employee {
             String email
         }
-        // @deprecated
+        // @deprecated:true
         Entity LegacyRecord {
             String note
         }
@@ -104,7 +107,7 @@ def test_commented_matches_tags():
 
 def test_find_by_tags_expression():
     cml = parse_text(TAGGED_CML)
-    results = cml.find_by_tags("@stakeholder and not @deprecated")
+    results = cml.find_by_tags("@stakeholder and not @deprecated:true")
     kinds_names = {(k, o.name) for k, o in results}
     assert ("Context", "HrContext") in kinds_names
     assert ("Entity", "Employee") in kinds_names
@@ -120,20 +123,32 @@ def test_filter_by_tags_keeps_matching_subtrees():
     assert "CustomerContext" not in ctx_names
     assert "PlainContext" not in ctx_names
 
+    # HrContext matches itself -> whole subtree kept
     hr = filtered.get_context("HrContext")
     agg = hr.get_aggregate("Employees")
-    assert [e.name for e in agg.entities] == ["Employee"]
+    assert [e.name for e in agg.entities] == ["Employee", "LegacyRecord"]
 
 
-def test_filter_by_tags_keeps_parent_of_matching_descendant():
+def test_filter_by_tags_matching_object_keeps_all_descendants():
     cml = parse_text(TAGGED_CML)
-    # Customer entity itself is untagged, but context matches
+    # CustomerContext matches itself -> whole subtree kept, including
+    # untagged children
     filtered = cml.filter_by_tags("@stakeholder:customer")
     ctx = filtered.get_context("CustomerContext")
     assert ctx is not None
-    # context matched itself -> children pruned to matches only
     agg = ctx.get_aggregate("Customers")
-    assert agg is None or agg.entities == []
+    assert [e.name for e in agg.entities] == ["Customer"]
+
+
+def test_filter_by_tags_prunes_non_matching_siblings():
+    cml = parse_text(TAGGED_CML)
+    # only the Employee entity matches (@pii:true); context and aggregate
+    # are kept as ancestors, LegacyRecord is pruned
+    filtered = cml.filter_by_tags("@pii:true")
+    hr = filtered.get_context("HrContext")
+    assert hr is not None
+    agg = hr.get_aggregate("Employees")
+    assert [e.name for e in agg.entities] == ["Employee"]
 
 
 def test_cli_generate_with_tags_filter(tmp_path, capsys):
@@ -142,7 +157,7 @@ def test_cli_generate_with_tags_filter(tmp_path, capsys):
     out = tmp_path / "out"
     rc = main([
         "generate", "-i", str(cml_file), "-g", "mermaid",
-        "-o", str(out), "--tags", "@stakeholder:employee",
+        "-o", str(out), "--tags", "@pii:true",
     ])
     assert rc == 0
     assert (out / "HrContext.mmd").exists()
@@ -173,7 +188,7 @@ def test_cli_generate_tags_with_generic_template(tmp_path):
     rc = main([
         "generate", "-i", str(cml_file), "-g", "generic",
         "-t", str(tpl), "-o", str(out), "-f", "ctx.txt",
-        "--tags", "(@stakeholder:employee or @stakeholder:customer) and not @deprecated",
+        "--tags", "(@stakeholder:employee or @stakeholder:customer) and not @deprecated:true",
     ])
     assert rc == 0
     assert (out / "ctx.txt").read_text() == "HrContext CustomerContext "

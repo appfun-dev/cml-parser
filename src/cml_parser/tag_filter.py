@@ -133,8 +133,10 @@ def _matches(obj: Any, node: _Node) -> bool:
 def filter_model(model: Any, expression: str) -> Any:
     """Return a copy of the CML model pruned by a tag expression.
 
-    An object is kept when it matches the expression itself or any of
-    its (kept) descendants matches. Objects without doc tags never match.
+    An object that matches the expression is kept together with all of
+    its descendants. A non-matching object is kept only when at least
+    one descendant matches, with non-matching children pruned
+    recursively. Objects without doc tags never match directly.
     """
     from .cml_objects import CML
 
@@ -144,6 +146,8 @@ def filter_model(model: Any, expression: str) -> Any:
         filtered.parse_results = model.parse_results
 
     def filter_aggregate(agg):
+        if _matches(agg, node):
+            return agg
         new = copy.copy(agg)
         kept_any = False
         for field_name in (
@@ -163,9 +167,11 @@ def filter_model(model: Any, expression: str) -> Any:
             kept = [c for c in children if _matches(c, node)]
             setattr(new, field_name, kept)
             kept_any = kept_any or bool(kept)
-        return new if (_matches(agg, node) or kept_any) else None
+        return new if kept_any else None
 
     def filter_context(ctx):
+        if _matches(ctx, node):
+            return ctx
         new = copy.copy(ctx)
         new.aggregates = [a for a in (filter_aggregate(x) for x in ctx.aggregates) if a]
         new.services = [s for s in ctx.services if _matches(s, node)]
@@ -173,6 +179,9 @@ def filter_model(model: Any, expression: str) -> Any:
         new.consumers = [c for c in ctx.consumers if _matches(c, node)]
         new_modules = []
         for module in ctx.modules:
+            if _matches(module, node):
+                new_modules.append(module)
+                continue
             new_mod = copy.copy(module)
             new_mod.aggregates = [
                 a for a in (filter_aggregate(x) for x in module.aggregates) if a
@@ -183,7 +192,7 @@ def filter_model(model: Any, expression: str) -> Any:
             new_mod.services = [s for s in module.services if _matches(s, node)]
             new_mod.resources = [r for r in module.resources if _matches(r, node)]
             new_mod.consumers = [c for c in module.consumers if _matches(c, node)]
-            if _matches(module, node) or (
+            if (
                 new_mod.aggregates
                 or new_mod.domain_objects
                 or new_mod.services
@@ -194,7 +203,10 @@ def filter_model(model: Any, expression: str) -> Any:
         new.modules = new_modules
         new_app = None
         if ctx.application:
-            app = copy.copy(ctx.application)
+            if _matches(ctx.application, node):
+                new_app = ctx.application
+            else:
+                app = copy.copy(ctx.application)
             app.command_events = [e for e in ctx.application.command_events if _matches(e, node)]
             app.domain_events = [e for e in ctx.application.domain_events if _matches(e, node)]
             app.services = [s for s in ctx.application.services if _matches(s, node)]
@@ -214,10 +226,14 @@ def filter_model(model: Any, expression: str) -> Any:
         new_domain.subdomains = []
         kept_any = False
         for sd in domain.subdomains:
+            if _matches(sd, node):
+                new_domain.subdomains.append(sd)
+                kept_any = True
+                continue
             new_sd = copy.copy(sd)
             new_sd.entities = [e for e in getattr(sd, "entities", []) if _matches(e, node)]
             new_sd.services = [s for s in getattr(sd, "services", []) if _matches(s, node)]
-            if _matches(sd, node) or new_sd.entities or new_sd.services:
+            if new_sd.entities or new_sd.services:
                 new_domain.subdomains.append(new_sd)
                 kept_any = True
         if _matches(domain, node) or kept_any:
@@ -236,14 +252,15 @@ def filter_model(model: Any, expression: str) -> Any:
     filtered.traits = [t for t in model.traits if _matches(t, node)]
 
     for app in model.tactic_applications:
+        if _matches(app, node):
+            filtered.tactic_applications.append(app)
+            continue
         new_app = copy.copy(app)
         new_app.domain_objects = [o for o in app.domain_objects if _matches(o, node)]
         new_app.services = [s for s in app.services if _matches(s, node)]
         new_app.resources = [r for r in app.resources if _matches(r, node)]
         new_app.consumers = [c for c in app.consumers if _matches(c, node)]
-        if _matches(app, node) or (
-            new_app.domain_objects or new_app.services or new_app.resources or new_app.consumers
-        ):
+        if new_app.domain_objects or new_app.services or new_app.resources or new_app.consumers:
             filtered.tactic_applications.append(new_app)
 
     return filtered

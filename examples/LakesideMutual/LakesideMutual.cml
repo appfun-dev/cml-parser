@@ -5,8 +5,9 @@
  * 
  * Note: The discovery library currently one detects the Upstream-Downstream
  * relationships without additional patterns such as OHS, PL, ect. 
- * These patterns are manually added here: 
+ * These patterns are manually added here:
  */
+// @project:LakesideMutual @stage:reverse-engineered
 ContextMap LakesideMutual {
 	contains CustomerCore, CustomerManagement, CustomerSelfService
 	contains PolicyManagement, ClaimsManagement
@@ -45,8 +46,9 @@ ContextMap LakesideMutual {
  * claim processing feature. See ./images/claim-processing-event-storming-result.jpg.
  * 
  * Issue: We currently modeled the feature within a new Bounded Context, although it 
- * would also be possible to implement it as part of the Policy Management Context. 
+ * would also be possible to implement it as part of the Policy Management Context.
  */
+// @domain:claims @team:ClaimsTeam @status:event-stormed
 BoundedContext ClaimsManagement implements ClaimsManagement {
 	type FEATURE
 	domainVisionStatement "This Bounded Context manages the processing of claims ..."
@@ -65,7 +67,9 @@ BoundedContext ClaimsManagement implements ClaimsManagement {
 		DomainEvent ClaimSubmitted // triggers CheckClaimDocumentation command
 	}
 	
+	// @criticality:high
 	Aggregate Claims {
+		// @pii:true
 		Entity Claim {
 			aggregateRoot
 			long claimId
@@ -123,6 +127,7 @@ BoundedContext ClaimsManagement implements ClaimsManagement {
 		}
 	}
 	
+	// @criticality:high
 	Aggregate Payment {
 		Entity Payment {
 			aggregateRoot
@@ -159,6 +164,7 @@ BoundedContext ClaimsManagement implements ClaimsManagement {
 		}
 	}
 	
+	// @criticality:low
 	Aggregate Notification {
 		Entity Notification {
 			aggregateRoot
@@ -180,8 +186,9 @@ BoundedContext ClaimsManagement implements ClaimsManagement {
 
 /**
  * The following Bounded Contexts are reverse engineered with our discovery library
- * (https://github.com/ContextMapper/context-map-discovery): 
+ * (https://github.com/ContextMapper/context-map-discovery):
  */
+// @domain:policy @team:PolicyTeam @criticality:high
 BoundedContext PolicyManagement implements PolicyManagement {
 	type FEATURE
 	implementationTechnology "Spring Boot"
@@ -299,6 +306,7 @@ BoundedContext PolicyManagement implements PolicyManagement {
 	}
 }
 
+// @domain:customer @team:CustomerTeam
 BoundedContext CustomerManagement implements CustomerManagement {
 	type FEATURE
 	implementationTechnology "Spring Boot"
@@ -375,6 +383,7 @@ BoundedContext CustomerManagement implements CustomerManagement {
 	}
 }
 
+// @domain:customer @team:CustomerTeam @channel:self-service
 BoundedContext CustomerSelfService implements SelfService {
 	type FEATURE
 	implementationTechnology "Spring Boot"
@@ -463,6 +472,7 @@ BoundedContext CustomerSelfService implements SelfService {
 	}
 }
 
+// @domain:customer @team:CustomerTeam @pii:true
 BoundedContext CustomerCore implements CustomerManagement {
 	type FEATURE
 	implementationTechnology "Spring Boot"
