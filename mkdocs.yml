@@ -66,6 +66,7 @@ nav:
   - index.md
   - quickstart.md
   - usage.md
+  - cli.md
   - examples.md
   - reference.md
   - Learn CML:

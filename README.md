@@ -78,6 +78,35 @@ else:
         print(f"  {err.pretty()}")
 ```
 
+## Command Line Interface
+
+Installing the package provides the `cml` command:
+
+```bash
+# Validate a CML file (exit 1 on syntax errors)
+cml validate -i model.cml
+
+# Generate Mermaid diagrams (class diagram per BoundedContext,
+# flowchart per ContextMap)
+cml generate -i model.cml -g mermaid -o ./out
+
+# Generate PlantUML diagrams
+cml generate -i model.cml -g plantuml -o ./out
+
+# Render arbitrary text with a Jinja2 template
+cml generate -i model.cml -g generic -t examples/templates/glossary.md.j2 -o ./out -f glossary.md
+
+# Filter the model with a BDD/Cucumber-style tag expression before generating
+cml generate -i model.cml -g mermaid -o ./out --tags '@domain:claims and not @deprecated:true'
+```
+
+Doc comments (`//`, `/* */`) above or inside blocks are attached to the parsed
+objects (`leading_comment`, `inner_comment`), and `@key:value` tags within them
+are extracted into `_doc_tags` for filtering and templating.
+
+See [docs/cli.md](docs/cli.md) for the full CLI reference, template context
+variables, and tag expression syntax.
+
 ## Architecture
 
 This parser is built with **ANTLR4**, providing:
