@@ -1234,7 +1234,35 @@ rawStatement
         | 'BasicType'
         | 'enum'
       )
-      (~(';' | '{' | '}'))* ';'?
+      (~(';' | '{' | '}'
+        | 'Aggregate'
+        | 'BoundedContext'
+        | 'ContextMap'
+        | 'Domain'
+        | 'Subdomain'
+        | 'UseCase'
+        | 'UserStory'
+        | 'Stakeholders'
+        | 'ValueRegister'
+        | 'Application'
+        | 'Flow'
+        | 'Coordination'
+        | 'Module'
+        | 'Service'
+        | 'Repository'
+        | 'Resource'
+        | 'Consumer'
+        | 'Entity'
+        | 'ValueObject'
+        | 'DomainEvent'
+        | 'Event'
+        | 'CommandEvent'
+        | 'Command'
+        | 'DataTransferObject'
+        | 'Trait'
+        | 'BasicType'
+        | 'enum'
+      ))* ';'?
     ;
 
 // --- ServiceCutter Configuration DSL (minimal support) ---

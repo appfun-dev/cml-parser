@@ -147,6 +147,49 @@ BoundedContext Shop {
     assert svc.get_tag("layer") == "application"
 
 
+def test_top_level_use_case_with_comment_and_tags():
+    # Regression: top-level 'UseCase X {}' was swallowed by the grammar's
+    # scUseCase alternative and never reached cml.use_cases
+    cml = parse_text("""
+// @stakeholder:employee
+UseCase ManageEmployees {
+}
+""")
+    uc = cml.get_use_case("ManageEmployees")
+    assert uc is not None
+    assert uc.leading_comment == "@stakeholder:employee"
+    assert uc.has_tag("stakeholder", "employee")
+
+
+def test_service_cutter_use_case_still_parsed_as_sc():
+    cml = parse_text("""
+UseCase SC {
+    isLatencyCritical = true
+    reads "a"
+}
+""")
+    assert cml.use_cases == []
+    assert cml.service_cutter is not None
+    assert cml.service_cutter.use_cases[0].name == "SC"
+
+
+def test_subdomain_after_vision_statement_parsed():
+    # Regression: rawStatement swallowed the Subdomain keyword after a
+    # vision statement inside a Domain body
+    cml = parse_text("""
+Domain HR {
+    vision = "v"
+    // @stakeholder:manager
+    Subdomain People { type CORE_DOMAIN }
+}
+""")
+    domain = cml.get_domain("HR")
+    sd = domain.get_subdomain("People")
+    assert sd is not None
+    assert sd.leading_comment == "@stakeholder:manager"
+    assert sd.has_tag("stakeholder", "manager")
+
+
 def test_find_tagged_searches_all_object_types():
     cml = parse_text("""
 // @stakeholder:employee

@@ -2611,6 +2611,17 @@ class CMLModelBuilder(CMLVisitor):
 
     def visitScUseCase(self, ctx: CMLParser.ScUseCaseContext):
         name = ctx.name().getText()
+
+        # The grammar's scUseCase alternative also matches a plain
+        # 'UseCase Name { }' with an empty body (it appears before useCase
+        # in topLevel). Treat such empty-bodied use cases as regular CML
+        # use cases instead of ServiceCutter configuration.
+        if not ctx.scUseCaseElement():
+            uc = UseCase(name=name)
+            self._attach_comments(uc, ctx)
+            self.cml.use_cases.append(uc)
+            return uc
+
         uc = SCUseCase(name=name, raw=ctx.getText())
 
         for element in ctx.scUseCaseElement():
