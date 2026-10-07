@@ -96,6 +96,33 @@ def test_generate_mermaid(tmp_path):
     assert 'Shipping -->|"Downstream-Upstream' in cmap
 
 
+def test_generate_plantuml(tmp_path):
+    cml = _write_sample(tmp_path)
+    out = tmp_path / "out"
+    assert main(["generate", "-i", str(cml), "-g", "plantuml", "-o", str(out)]) == 0
+
+    sales = (out / "Sales.puml").read_text()
+    assert sales.startswith("@startuml")
+    assert sales.rstrip().endswith("@enduml")
+    assert 'package "Orders" <<Rectangle>>' in sales
+    assert "class Order <<Aggregate Root>>" in sales
+    assert "+status : String" in sales
+    assert "enum OrderState" in sales
+    assert "NEW" in sales
+    assert "Order --> Customer" in sales
+    assert "class OrderService <<Service>>" in sales
+    assert "placeOrder(order : Order) : void" in sales
+
+    shipping = (out / "Shipping.puml").read_text()
+    assert "class Shipment <<Aggregate Root>>" in shipping
+
+    cmap = (out / "ShopMap_context_map.puml").read_text()
+    assert cmap.startswith("@startuml")
+    assert "[Sales]" in cmap
+    assert "[Shipping]" in cmap
+    assert "[Shipping] --> [Sales] : Downstream-Upstream" in cmap
+
+
 def test_generate_mermaid_invalid_input(tmp_path, capsys):
     bad = tmp_path / "bad.cml"
     bad.write_text("BoundedContext {")
