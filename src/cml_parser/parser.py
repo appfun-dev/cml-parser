@@ -198,7 +198,7 @@ def _parse_single_file(
 
     if not errors or not strict:
         try:
-            builder = CMLModelBuilder(filename)
+            builder = CMLModelBuilder(filename, token_stream=token_stream)
             cml = builder.visit(tree)
             builder_imports = builder.imports  # Get collected imports
         except Exception as e:

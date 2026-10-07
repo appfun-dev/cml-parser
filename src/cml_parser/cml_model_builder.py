@@ -1,5 +1,7 @@
 from typing import List, Optional, Any, Dict, Set
+import re
 from antlr4 import *
+from .antlr.CMLLexer import CMLLexer
 from .antlr.CMLParser import CMLParser
 from .antlr.CMLVisitor import CMLVisitor
 from .cml_objects import (
@@ -67,8 +69,13 @@ from .service_cutter_objects import (
 )
 
 class CMLModelBuilder(CMLVisitor):
-    def __init__(self, filename: str = None):
+    _TAG_RE = re.compile(r"(?:^|(?<=\s))@([A-Za-z_][A-Za-z0-9_.-]*)\s*:\s*([^\s]+)", re.MULTILINE)
+
+    def __init__(self, filename: str = None, token_stream: Optional[CommonTokenStream] = None):
         self.filename = filename
+        self.token_stream = token_stream
+        self._comment_segments = None  # List[(start_line, end_line, text)]
+        self._code_lines = None  # Set[int] of lines containing non-comment tokens
         self.cml = CML()
         self.context_map_obj_map = {} # Name -> Context
         self.subdomain_map = {} # Name -> Subdomain
@@ -226,6 +233,102 @@ class CMLModelBuilder(CMLVisitor):
                     )
                     target_obj.associations.append(new_assoc)
                     existing_assoc_keys.add(key)
+
+    # --- Comment and tag extraction ---
+
+    @staticmethod
+    def _clean_comment_text(text: str) -> str:
+        if text.startswith("//"):
+            return text[2:].strip()
+        if text.startswith("/*"):
+            body = text[2:-2] if text.endswith("*/") else text[2:]
+            lines = [l.strip().lstrip("*").strip() for l in body.splitlines()]
+            return "\n".join(l for l in lines if l)
+        return text.strip()
+
+    def _ensure_comment_index(self) -> None:
+        if self._comment_segments is not None:
+            return
+        self._comment_segments = []
+        self._code_lines = set()
+        if self.token_stream is None:
+            return
+        for token in self.token_stream.tokens:
+            if token.type == Token.EOF:
+                continue
+            if token.type in (CMLLexer.COMMENT, CMLLexer.BLOCK_COMMENT):
+                start = token.line
+                end = start + token.text.count("\n")
+                self._comment_segments.append((start, end, self._clean_comment_text(token.text)))
+            else:
+                self._code_lines.add(token.line)
+        self._comment_segments.sort(key=lambda s: s[0])
+
+    def _leading_comment(self, ctx) -> Optional[str]:
+        """Contiguous comment paragraph immediately above the block's first line."""
+        if ctx.start is None:
+            return None
+        parts = []
+        cursor = ctx.start.line
+        while True:
+            seg = next((s for s in self._comment_segments if s[1] == cursor - 1), None)
+            if seg is None or seg[0] in self._code_lines:
+                break
+            parts.append(seg[2])
+            cursor = seg[0]
+        parts.reverse()
+        text = "\n".join(p for p in parts if p)
+        return text or None
+
+    def _inner_comment(self, ctx) -> Optional[str]:
+        """First contiguous comment paragraph inside the block, right after '{'."""
+        if ctx.start is None or self.token_stream is None:
+            return None
+        tokens = self.token_stream.tokens
+        stop_index = ctx.stop.tokenIndex if ctx.stop is not None else len(tokens) - 1
+        brace_line = None
+        for i in range(ctx.start.tokenIndex, stop_index + 1):
+            if tokens[i].text == "{":
+                brace_line = tokens[i].line
+                break
+        if brace_line is None:
+            return None
+        parts = []
+        cursor = brace_line + 1
+        while True:
+            seg = next((s for s in self._comment_segments if s[0] == cursor), None)
+            if seg is None or seg[0] in self._code_lines:
+                break
+            parts.append(seg[2])
+            cursor = seg[1] + 1
+        text = "\n".join(p for p in parts if p)
+        return text or None
+
+    @classmethod
+    def _extract_tags(cls, *texts: Optional[str]) -> Dict[str, List[str]]:
+        """Extract @key:value tags from comment texts."""
+        tags: Dict[str, List[str]] = {}
+        for text in texts:
+            if not text:
+                continue
+            for match in cls._TAG_RE.finditer(text):
+                tags.setdefault(match.group(1), []).append(match.group(2))
+        return tags
+
+    def _attach_comments(self, obj: Any, ctx) -> None:
+        """Attach leading/inner comments and @key:value tags to a block object."""
+        if self.token_stream is None:
+            return
+        if not hasattr(obj, "_doc_tags"):
+            return
+        self._ensure_comment_index()
+        leading = self._leading_comment(ctx)
+        inner = self._inner_comment(ctx)
+        obj.leading_comment = leading
+        obj.inner_comment = inner
+        tags = self._extract_tags(leading, inner)
+        if tags:
+            obj._doc_tags = tags
 
     def visitImports(self, ctx: CMLParser.ImportsContext):
         """Collect import statement paths for later resolution."""
@@ -805,6 +908,7 @@ class CMLModelBuilder(CMLVisitor):
     def visitContextMap(self, ctx: CMLParser.ContextMapContext):
         name = ctx.name().getText() if ctx.name() else "ContextMap"
         cm = ContextMap(name=name, type="UNDEFINED", state="UNDEFINED")
+        self._attach_comments(cm, ctx)
         
         # Process settings
         contains_list = []
@@ -940,7 +1044,8 @@ class CMLModelBuilder(CMLVisitor):
         else:
             name = ctx_names.getText()
         context = self._get_or_create_context(name)
-        
+        self._attach_comments(context, ctx)
+
         implements_list = []
         realizes_list = []
         refines_name = None
@@ -971,6 +1076,7 @@ class CMLModelBuilder(CMLVisitor):
     def visitTacticDDDApplication(self, ctx: CMLParser.TacticDDDApplicationContext):
         name = ctx.name().getText()
         app = TacticDDDApplication(name=name)
+        self._attach_comments(app, ctx)
 
         if ctx.qualifiedName():
             app.base_package = ctx.qualifiedName().getText()
@@ -987,6 +1093,7 @@ class CMLModelBuilder(CMLVisitor):
     def visitDomain(self, ctx: CMLParser.DomainContext):
         name = ctx.name().getText()
         domain = Domain(name=name, vision="")
+        self._attach_comments(domain, ctx)
         self.current_domain = domain
         self.domain_map[name] = domain
         
@@ -1003,6 +1110,7 @@ class CMLModelBuilder(CMLVisitor):
         sd_type = SubdomainType.UNDEFINED if hasattr(SubdomainType, "UNDEFINED") else SubdomainType.GENERIC
 
         subdomain = Subdomain(name=name, type=sd_type, vision="", domain=self.current_domain)
+        self._attach_comments(subdomain, ctx)
         self.subdomain_map[name] = subdomain
 
         # Collect supports clauses for deferred linking
@@ -1029,6 +1137,7 @@ class CMLModelBuilder(CMLVisitor):
     def visitAggregate(self, ctx: CMLParser.AggregateContext):
         name = ctx.name().getText()
         agg = Aggregate(name=name)
+        self._attach_comments(agg, ctx)
         
         if self.current_module:
             self.current_module.aggregates.append(agg)
@@ -1094,6 +1203,7 @@ class CMLModelBuilder(CMLVisitor):
     def visitEntity(self, ctx: CMLParser.EntityContext):
         name = ctx.name(0).getText()
         entity = Entity(name=name)
+        self._attach_comments(entity, ctx)
 
         if ctx.getChildCount() and ctx.getChild(0).getText() == "abstract":
             entity.is_abstract = True
@@ -1176,6 +1286,7 @@ class CMLModelBuilder(CMLVisitor):
     def visitValueObject(self, ctx: CMLParser.ValueObjectContext):
         name = ctx.name(0).getText()
         vo = ValueObject(name=name)
+        self._attach_comments(vo, ctx)
 
         if ctx.getChildCount() and ctx.getChild(0).getText() == "abstract":
             vo.is_abstract = True
@@ -1251,6 +1362,7 @@ class CMLModelBuilder(CMLVisitor):
     def visitDomainEvent(self, ctx: CMLParser.DomainEventContext):
         name = ctx.name(0).getText()
         de = DomainEvent(name=name)
+        self._attach_comments(de, ctx)
 
         if ctx.getChildCount() and ctx.getChild(0).getText() == "abstract":
             de.is_abstract = True
@@ -1326,6 +1438,7 @@ class CMLModelBuilder(CMLVisitor):
     def visitEnumDecl(self, ctx: CMLParser.EnumDeclContext):
         name = ctx.name().getText()
         enum = Enum(name=name)
+        self._attach_comments(enum, ctx)
         
         # Options
         for opt in ctx.enumOption():
@@ -1362,6 +1475,7 @@ class CMLModelBuilder(CMLVisitor):
     def visitBasicType(self, ctx: CMLParser.BasicTypeContext):
         name = ctx.name().getText()
         basic_type = BasicType(name=name)
+        self._attach_comments(basic_type, ctx)
 
         if ctx.traitRef():
             basic_type.traits = [t.name().getText() for t in ctx.traitRef()]
@@ -1684,6 +1798,7 @@ class CMLModelBuilder(CMLVisitor):
     def visitService(self, ctx: CMLParser.ServiceContext):
         name = ctx.name().getText()
         svc = Service(name=name)
+        self._attach_comments(svc, ctx)
         prev_service = getattr(self, "current_service", None)
         self.current_service = svc
         self.visitChildren(ctx)
@@ -1736,6 +1851,7 @@ class CMLModelBuilder(CMLVisitor):
     def visitResource(self, ctx: CMLParser.ResourceContext):
         name = ctx.name().getText()
         resource = Resource(name=name)
+        self._attach_comments(resource, ctx)
         prev_resource = self.current_resource
         self.current_resource = resource
         self.visitChildren(ctx)
@@ -1773,6 +1889,7 @@ class CMLModelBuilder(CMLVisitor):
     def visitConsumer(self, ctx: CMLParser.ConsumerContext):
         name = ctx.name().getText()
         consumer = Consumer(name=name)
+        self._attach_comments(consumer, ctx)
         prev_consumer = self.current_consumer
         self.current_consumer = consumer
         self.visitChildren(ctx)
@@ -1830,6 +1947,7 @@ class CMLModelBuilder(CMLVisitor):
     def visitRepository(self, ctx: CMLParser.RepositoryContext):
         name = ctx.name().getText()
         repo = Repository(name=name)
+        self._attach_comments(repo, ctx)
         prev_repo = getattr(self, "current_repository", None)
         self.current_repository = repo
         self.visitChildren(ctx)
@@ -2061,6 +2179,7 @@ class CMLModelBuilder(CMLVisitor):
     def visitUseCase(self, ctx: CMLParser.UseCaseContext):
         name = ctx.name().getText()
         uc = UseCase(name=name)
+        self._attach_comments(uc, ctx)
         
         for element in ctx.useCaseBody():
             if element.useCaseActor():
@@ -2098,6 +2217,7 @@ class CMLModelBuilder(CMLVisitor):
         story_name_ctx = ctx.name(0) if hasattr(ctx, "name") else None
         name = story_name_ctx.getText() if story_name_ctx else ctx.name().getText()
         us = UserStory(name=name)
+        self._attach_comments(us, ctx)
 
         if len(ctx.name()) > 1:
             us.split_by = ctx.name(1).getText()
@@ -2220,6 +2340,7 @@ class CMLModelBuilder(CMLVisitor):
     def visitValueRegister(self, ctx: CMLParser.ValueRegisterContext):
         name = ctx.name(0).getText()
         register = ValueRegister(name=name)
+        self._attach_comments(register, ctx)
         
         if len(ctx.name()) > 1:
             register.context = ctx.name(1).getText()
@@ -2556,6 +2677,7 @@ class CMLModelBuilder(CMLVisitor):
     def visitApplication(self, ctx: CMLParser.ApplicationContext):
         app_name = ctx.name().getText() if ctx.name() else None
         app = Application(name=app_name)
+        self._attach_comments(app, ctx)
         self.current_application = app
         
         for element in ctx.applicationElement():
@@ -2690,6 +2812,7 @@ class CMLModelBuilder(CMLVisitor):
     def visitModule(self, ctx: CMLParser.ModuleContext):
         name = ctx.name().getText()
         module = Module(name=name)
+        self._attach_comments(module, ctx)
         
         self.current_module = module
         if ctx.body:
@@ -2703,6 +2826,7 @@ class CMLModelBuilder(CMLVisitor):
     def visitCommandEvent(self, ctx: CMLParser.CommandEventContext):
         name = ctx.name(0).getText()
         ce = CommandEvent(name=name)
+        self._attach_comments(ce, ctx)
 
         if ctx.getChildCount() and ctx.getChild(0).getText() == "abstract":
             ce.is_abstract = True
@@ -2798,6 +2922,7 @@ class CMLModelBuilder(CMLVisitor):
     def visitDataTransferObject(self, ctx: CMLParser.DataTransferObjectContext):
         name = ctx.name(0).getText()
         dto = DataTransferObject(name=name)
+        self._attach_comments(dto, ctx)
         
         if len(ctx.name()) > 1:
             dto.extends = ctx.name(1).getText()
@@ -2852,6 +2977,7 @@ class CMLModelBuilder(CMLVisitor):
     def visitTrait(self, ctx: CMLParser.TraitContext):
         name = ctx.name().getText()
         trait = Trait(name=name)
+        self._attach_comments(trait, ctx)
 
         if ctx.traitBody():
             for flag in ctx.traitBody().traitFlag():

@@ -1,7 +1,29 @@
 from dataclasses import dataclass, field, asdict
 from enum import Enum
-from typing import List, Optional, Any, Union, Set
+from typing import List, Dict, Optional, Any, Union, Set
 import json
+
+class Commented:
+    """Mixin providing comment/tag accessors for block-level CML objects.
+
+    Concrete dataclasses declare the fields themselves:
+        leading_comment: Optional[str] = None
+        inner_comment: Optional[str] = None
+        _doc_tags: Dict[str, List[str]] = field(default_factory=dict)
+    """
+
+    def get_tag(self, key: str) -> Optional[str]:
+        values = self._doc_tags.get(key)
+        return values[0] if values else None
+
+    def get_tags(self, key: str) -> List[str]:
+        return list(self._doc_tags.get(key, []))
+
+    def has_tag(self, key: str, value: str) -> bool:
+        return value in self._doc_tags.get(key, [])
+
+    def has_tags(self, tags: Dict[str, str]) -> bool:
+        return all(self.has_tag(key, value) for key, value in tags.items())
 
 class RelationshipType(str, Enum):
     CUSTOMER_SUPPLIER = "Customer-Supplier"
@@ -210,7 +232,8 @@ class Association:
 # Domain Objects
 
 @dataclass
-class Entity:
+class Entity(Commented):
+    """Represents an attribute in a domain object (Entity, ValueObject, etc.)."""
     name: str
     is_aggregate_root: bool = False
     attributes: List[Attribute] = field(default_factory=list)
@@ -246,12 +269,16 @@ class Entity:
     def get_operation(self, op_name: str) -> Optional[Operation]:
         return next((o for o in self.operations if o.name == op_name), None)
 
+    leading_comment: Optional[str] = None
+    inner_comment: Optional[str] = None
+    _doc_tags: Dict[str, List[str]] = field(default_factory=dict)
+
     def __repr__(self):
         root_suffix = " (root)" if self.is_aggregate_root else ""
         return f"<Entity({self.name}{root_suffix})>"
 
 @dataclass
-class ValueObject:
+class ValueObject(Commented):
     """Represents a DDD Value Object."""
     name: str
     attributes: List[Attribute] = field(default_factory=list)
@@ -287,11 +314,15 @@ class ValueObject:
     def get_operation(self, op_name: str) -> Optional[Operation]:
         return next((o for o in self.operations if o.name == op_name), None)
 
+    leading_comment: Optional[str] = None
+    inner_comment: Optional[str] = None
+    _doc_tags: Dict[str, List[str]] = field(default_factory=dict)
+
     def __repr__(self):
         return f"<ValueObject({self.name})>"
 
 @dataclass
-class DomainEvent:
+class DomainEvent(Commented):
     """Represents a DDD Domain Event."""
     name: str
     attributes: List[Attribute] = field(default_factory=list)
@@ -325,11 +356,15 @@ class DomainEvent:
     def get_operation(self, op_name: str) -> Optional[Operation]:
         return next((o for o in self.operations if o.name == op_name), None)
 
+    leading_comment: Optional[str] = None
+    inner_comment: Optional[str] = None
+    _doc_tags: Dict[str, List[str]] = field(default_factory=dict)
+
     def __repr__(self):
         return f"<DomainEvent({self.name})>"
 
 @dataclass
-class BasicType:
+class BasicType(Commented):
     name: str
     attributes: List[Attribute] = field(default_factory=list)
     associations: List[Association] = field(default_factory=list)
@@ -351,11 +386,15 @@ class BasicType:
     def get_operation(self, op_name: str) -> Optional[Operation]:
         return next((o for o in self.operations if o.name == op_name), None)
 
+    leading_comment: Optional[str] = None
+    inner_comment: Optional[str] = None
+    _doc_tags: Dict[str, List[str]] = field(default_factory=dict)
+
     def __repr__(self):
         return f"<BasicType({self.name})>"
 
 @dataclass
-class Enum:
+class Enum(Commented):
     """Represents an enumeration."""
     name: str
     values: List[str] = field(default_factory=list)
@@ -364,13 +403,16 @@ class Enum:
     hint: Optional[str] = None
     ordinal: bool = False
     attributes: List[Attribute] = field(default_factory=list)
+    leading_comment: Optional[str] = None
+    inner_comment: Optional[str] = None
+    _doc_tags: Dict[str, List[str]] = field(default_factory=dict)
 
     def __repr__(self):
         lifecycle_suffix = " (lifecycle)" if self.is_aggregate_lifecycle else ""
         return f"<Enum({self.name}{lifecycle_suffix})>"
 
 @dataclass
-class Subdomain:
+class Subdomain(Commented):
     name: str
     type: SubdomainType
     vision: str
@@ -379,6 +421,9 @@ class Subdomain:
     services: List['Service'] = field(default_factory=list)
     implementations: List['Context'] = field(default_factory=list, repr=False)
     supported_requirements: List[Any] = field(default_factory=list)
+    leading_comment: Optional[str] = None
+    inner_comment: Optional[str] = None
+    _doc_tags: Dict[str, List[str]] = field(default_factory=dict)
 
     def get_entity(self, entity_name: str) -> Optional[Entity]:
         return next((e for e in self.entities if e.name == entity_name), None)
@@ -390,11 +435,14 @@ class Subdomain:
         return f"<Subdomain({self.name})>"
 
 @dataclass
-class Domain:
+class Domain(Commented):
     name: str
     vision: str
     subdomains: List[Subdomain] = field(default_factory=list)
     implementations: List["Context"] = field(default_factory=list)
+    leading_comment: Optional[str] = None
+    inner_comment: Optional[str] = None
+    _doc_tags: Dict[str, List[str]] = field(default_factory=dict)
 
     @property
     def core(self) -> List[Subdomain]:
@@ -415,7 +463,7 @@ class Domain:
         return f"<Domain({self.name})>"
 
 @dataclass
-class Aggregate:
+class Aggregate(Commented):
     name: str
     owner: Optional[str] = None
     owner_ref: Optional['Context'] = field(default=None, repr=False)
@@ -442,6 +490,9 @@ class Aggregate:
     command_events: List['CommandEvent'] = field(default_factory=list)
     data_transfer_objects: List['DataTransferObject'] = field(default_factory=list)
     context: Optional['Context'] = field(default=None, repr=False)
+    leading_comment: Optional[str] = None
+    inner_comment: Optional[str] = None
+    _doc_tags: Dict[str, List[str]] = field(default_factory=dict)
 
     def get_entity(self, entity_name: str) -> Optional[Entity]:
         return next((e for e in self.entities if e.name == entity_name), None)
@@ -465,7 +516,7 @@ class Aggregate:
         return f"<Aggregate({self.name})>"
 
 @dataclass
-class Service:
+class Service(Commented):
     name: str
     operations: List[Operation] = field(default_factory=list)
     associations: List[Association] = field(default_factory=list)
@@ -478,6 +529,9 @@ class Service:
     subscribe_event_bus: Optional[str] = None
     webservice: bool = False
     scaffold: bool = False
+    leading_comment: Optional[str] = None
+    inner_comment: Optional[str] = None
+    _doc_tags: Dict[str, List[str]] = field(default_factory=dict)
 
     def get_operation(self, op_name: str) -> Optional[Operation]:
         return next((o for o in self.operations if o.name == op_name), None)
@@ -486,7 +540,7 @@ class Service:
         return f"<Service({self.name})>"
 
 @dataclass
-class Resource:
+class Resource(Commented):
     name: str
     operations: List[Operation] = field(default_factory=list)
     dependencies: List[str] = field(default_factory=list)
@@ -496,6 +550,9 @@ class Resource:
     scaffold: bool = False
     hint: Optional[str] = None
     path: Optional[str] = None
+    leading_comment: Optional[str] = None
+    inner_comment: Optional[str] = None
+    _doc_tags: Dict[str, List[str]] = field(default_factory=dict)
 
     def get_operation(self, op_name: str) -> Optional[Operation]:
         return next((o for o in self.operations if o.name == op_name), None)
@@ -504,7 +561,7 @@ class Resource:
         return f"<Resource({self.name})>"
 
 @dataclass
-class Consumer:
+class Consumer(Commented):
     name: str
     aggregate: Optional[Aggregate] = field(default=None, repr=False)
     hint: Optional[str] = None
@@ -515,12 +572,15 @@ class Consumer:
     subscribe_to: Optional[str] = None
     subscribe_event_bus: Optional[str] = None
     dependencies: List[str] = field(default_factory=list)
+    leading_comment: Optional[str] = None
+    inner_comment: Optional[str] = None
+    _doc_tags: Dict[str, List[str]] = field(default_factory=dict)
 
     def __repr__(self):
         return f"<Consumer({self.name})>"
 
 @dataclass
-class Repository:
+class Repository(Commented):
     """Represents a DDD Repository for data access."""
     name: str
     operations: List[Operation] = field(default_factory=list)
@@ -531,6 +591,9 @@ class Repository:
     hint: Optional[str] = None
     subscribe_to: Optional[str] = None
     subscribe_event_bus: Optional[str] = None
+    leading_comment: Optional[str] = None
+    inner_comment: Optional[str] = None
+    _doc_tags: Dict[str, List[str]] = field(default_factory=dict)
 
     def get_operation(self, op_name: str) -> Optional[Operation]:
         return next((o for o in self.operations if o.name == op_name), None)
@@ -539,7 +602,7 @@ class Repository:
         return f"<Repository({self.name})>"
 
 @dataclass
-class Context:
+class Context(Commented):
     name: str
     type: str = "FEATURE"
     state: str = "UNDEFINED"
@@ -561,6 +624,9 @@ class Context:
     consumers: List[Consumer] = field(default_factory=list)
     modules: List['Module'] = field(default_factory=list)
     application: Optional['Application'] = field(default=None, repr=False)
+    leading_comment: Optional[str] = None
+    inner_comment: Optional[str] = None
+    _doc_tags: Dict[str, List[str]] = field(default_factory=dict)
 
     def get_subdomain(self, subdomain_name: str) -> Optional[Subdomain]:
         return next((s for s in self.implements if s.name == subdomain_name), None)
@@ -602,12 +668,15 @@ class Relationship:
         return f"<Relationship({self.left.name} -> {self.right.name} [{self.type}])>"
 
 @dataclass
-class ContextMap:
+class ContextMap(Commented):
     name: str
     type: str
     state: str
     contexts: List[Context] = field(default_factory=list)
     relationships: List[Relationship] = field(default_factory=list)
+    leading_comment: Optional[str] = None
+    inner_comment: Optional[str] = None
+    _doc_tags: Dict[str, List[str]] = field(default_factory=dict)
 
     def get_context(self, context_name: str) -> Optional[Context]:
         return next((c for c in self.contexts if c.name == context_name), None)
@@ -652,7 +721,7 @@ class ContextMap:
         return f"<ContextMap({self.name})>"
 
 @dataclass
-class UseCase:
+class UseCase(Commented):
     name: str
     actor: Optional[str] = None
     secondary_actors: List[str] = field(default_factory=list)
@@ -660,12 +729,15 @@ class UseCase:
     benefit: Optional[str] = None
     scope: Optional[str] = None
     level: Optional[str] = None
+    leading_comment: Optional[str] = None
+    inner_comment: Optional[str] = None
+    _doc_tags: Dict[str, List[str]] = field(default_factory=dict)
 
     def __repr__(self):
         return f"<UseCase({self.name})>"
 
 @dataclass
-class UserStory:
+class UserStory(Commented):
     name: str
     role: Optional[str] = None
     feature: Optional[str] = None
@@ -674,6 +746,9 @@ class UserStory:
     split_by: Optional[str] = None
     promoted_values: List[str] = field(default_factory=list)
     harmed_values: List[str] = field(default_factory=list)
+    leading_comment: Optional[str] = None
+    inner_comment: Optional[str] = None
+    _doc_tags: Dict[str, List[str]] = field(default_factory=dict)
 
     def __repr__(self):
         return f"<UserStory({self.name})>"
@@ -767,7 +842,7 @@ class ValueCluster:
         return f"<ValueCluster({self.name})>"
 
 @dataclass
-class ValueRegister:
+class ValueRegister(Commented):
     name: str
     context: Optional[str] = None # The context this register is for
     context_ref: Optional[Context] = field(default=None, repr=False)
@@ -776,6 +851,9 @@ class ValueRegister:
     epics: List['ValueEpic'] = field(default_factory=list)
     weightings: List['ValueWeigthing'] = field(default_factory=list)
     narratives: List['ValueNarrative'] = field(default_factory=list)
+    leading_comment: Optional[str] = None
+    inner_comment: Optional[str] = None
+    _doc_tags: Dict[str, List[str]] = field(default_factory=dict)
 
     def __repr__(self):
         return f"<ValueRegister({self.name})>"
@@ -839,7 +917,7 @@ class CoordinationStepRef:
     operation_ref: Optional[Operation] = field(default=None, repr=False)
 
 @dataclass
-class Application:
+class Application(Commented):
     name: Optional[str] = None
     commands: List[Command] = field(default_factory=list)
     command_events: List['CommandEvent'] = field(default_factory=list)
@@ -847,12 +925,15 @@ class Application:
     flows: List[Flow] = field(default_factory=list)
     services: List[Service] = field(default_factory=list)
     coordinations: List[Coordination] = field(default_factory=list)
+    leading_comment: Optional[str] = None
+    inner_comment: Optional[str] = None
+    _doc_tags: Dict[str, List[str]] = field(default_factory=dict)
 
     def __repr__(self):
         return "<Application>"
 
 @dataclass
-class CommandEvent:
+class CommandEvent(Commented):
     name: str
     attributes: List[Attribute] = field(default_factory=list)
     associations: List[Association] = field(default_factory=list)
@@ -879,14 +960,18 @@ class CommandEvent:
     discriminator_type: Optional[str] = None
     discriminator_length: Optional[str] = None
 
+    leading_comment: Optional[str] = None
+    inner_comment: Optional[str] = None
+    _doc_tags: Dict[str, List[str]] = field(default_factory=dict)
+
     def get_attribute(self, attr_name: str) -> Optional[Attribute]:
         return next((a for a in self.attributes if a.name == attr_name), None)
-    
+
     def __repr__(self):
         return f"<CommandEvent({self.name})>"
 
 @dataclass
-class DataTransferObject:
+class DataTransferObject(Commented):
     name: str
     attributes: List[Attribute] = field(default_factory=list)
     operations: List[Operation] = field(default_factory=list)
@@ -900,14 +985,18 @@ class DataTransferObject:
     scaffold: bool = False
     hint: Optional[str] = None
 
+    leading_comment: Optional[str] = None
+    inner_comment: Optional[str] = None
+    _doc_tags: Dict[str, List[str]] = field(default_factory=dict)
+
     def get_attribute(self, attr_name: str) -> Optional[Attribute]:
         return next((a for a in self.attributes if a.name == attr_name), None)
-    
+
     def __repr__(self):
         return f"<DataTransferObject({self.name})>"
 
 @dataclass
-class Module:
+class Module(Commented):
     name: str
     external: bool = False
     base_package: Optional[str] = None
@@ -918,30 +1007,39 @@ class Module:
     consumers: List[Consumer] = field(default_factory=list)
     domain_objects: List[Any] = field(default_factory=list) # Entities, VOs, etc.
     application: Optional[Application] = field(default=None, repr=False)
+    leading_comment: Optional[str] = None
+    inner_comment: Optional[str] = None
+    _doc_tags: Dict[str, List[str]] = field(default_factory=dict)
     
     def __repr__(self):
         return f"<Module({self.name})>"
 
 @dataclass
-class TacticDDDApplication:
+class TacticDDDApplication(Commented):
     name: str
     base_package: Optional[str] = None
     services: List[Service] = field(default_factory=list)
     resources: List[Resource] = field(default_factory=list)
     consumers: List[Consumer] = field(default_factory=list)
     domain_objects: List[Any] = field(default_factory=list)
+    leading_comment: Optional[str] = None
+    inner_comment: Optional[str] = None
+    _doc_tags: Dict[str, List[str]] = field(default_factory=dict)
 
     def __repr__(self):
         return f"<TacticDDDApplication({self.name})>"
 
 @dataclass
-class Trait:
+class Trait(Commented):
     name: str
     attributes: List[Attribute] = field(default_factory=list)
     associations: List[Association] = field(default_factory=list)
     operations: List[Operation] = field(default_factory=list)
     package: Optional[str] = None
     hint: Optional[str] = None
+    leading_comment: Optional[str] = None
+    inner_comment: Optional[str] = None
+    _doc_tags: Dict[str, List[str]] = field(default_factory=dict)
 
     def __repr__(self):
         return f"<Trait({self.name})>"
