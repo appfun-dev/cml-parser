@@ -39,6 +39,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "--outputFile",
         help="Name of the generated file (only used by the 'generic' generator).",
     )
+    generate.add_argument(
+        "--tags",
+        help="BDD/Cucumber-style tag expression to filter the model before "
+        "generation, e.g. '@stakeholder:employee and not @deprecated'. "
+        "Objects are kept when they or any descendant matches.",
+    )
     return parser
 
 
@@ -67,10 +73,19 @@ def _cmd_generate(args: argparse.Namespace) -> int:
             print(f"  {err.pretty()}", file=sys.stderr)
         return 1
 
+    model = cml
+    if args.tags:
+        from .tag_filter import TagExpressionError, filter_model
+        try:
+            model = filter_model(cml, args.tags)
+        except TagExpressionError as e:
+            print(f"Invalid --tags expression: {e}", file=sys.stderr)
+            return 1
+
     generator = GENERATORS[args.generator]()
     try:
         written = generator.generate(
-            cml,
+            model,
             args.outputDir,
             template=args.template,
             output_file=args.outputFile,

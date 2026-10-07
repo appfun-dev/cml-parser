@@ -25,6 +25,15 @@ class Commented:
     def has_tags(self, tags: Dict[str, str]) -> bool:
         return all(self.has_tag(key, value) for key, value in tags.items())
 
+    def matches_tags(self, expression: str) -> bool:
+        """Evaluate a BDD/Cucumber-style tag expression against this object's tags.
+
+        Syntax: `@key:value`, `@key`, `not`, `and`, `or`, parentheses.
+        Example: `@stakeholder:employee and not @deprecated`
+        """
+        from .tag_filter import evaluate
+        return evaluate(expression, self._doc_tags)
+
 class RelationshipType(str, Enum):
     CUSTOMER_SUPPLIER = "Customer-Supplier"
     UPSTREAM_DOWNSTREAM = "Upstream-Downstream"
@@ -1149,24 +1158,13 @@ class CML:
     def get_use_case(self, use_case_name: str) -> Optional[UseCase]:
         return next((uc for uc in self.use_cases if uc.name == use_case_name), None)
 
-    def find_tagged(self, key: str, value: Optional[str] = None) -> List[tuple]:
-        """Find all tagged objects in the model tree.
-
-        Returns a list of (kind, object) tuples where kind is the class
-        name (e.g. 'Context', 'Aggregate', 'Entity'). If value is None,
-        matches any object having the tag key regardless of value.
-        """
+    def _walk_tagged(self, predicate) -> List[tuple]:
+        """Walk the model tree and collect (kind, object) pairs where
+        predicate(tags_dict) is True."""
         results: List[tuple] = []
 
         def visit(obj: Any) -> None:
-            if not hasattr(obj, "_doc_tags"):
-                return
-            matched = (
-                key in obj._doc_tags
-                if value is None
-                else obj.has_tag(key, value)
-            )
-            if matched:
+            if hasattr(obj, "_doc_tags") and predicate(obj._doc_tags):
                 results.append((type(obj).__name__, obj))
 
         def visit_aggregate(agg: 'Aggregate') -> None:
@@ -1226,6 +1224,35 @@ class CML:
                 visit(obj)
 
         return results
+
+    def find_tagged(self, key: str, value: Optional[str] = None) -> List[tuple]:
+        """Find all objects in the model tree carrying the given doc tag.
+
+        Returns (kind, object) tuples. If value is None, matches any
+        object having the tag key regardless of value.
+        """
+        if value is None:
+            return self._walk_tagged(lambda tags: key in tags)
+        return self._walk_tagged(lambda tags: value in tags.get(key, []))
+
+    def find_by_tags(self, expression: str) -> List[tuple]:
+        """Find all objects in the model tree matching a BDD/Cucumber-style
+        tag expression, e.g. `@stakeholder:employee and not @deprecated`.
+
+        Returns (kind, object) tuples.
+        """
+        from .tag_filter import parse, evaluate
+        node = parse(expression)
+        return self._walk_tagged(lambda tags: evaluate(node, tags))
+
+    def filter_by_tags(self, expression: str) -> 'CML':
+        """Return a copy of this model pruned by a tag expression.
+
+        An object is kept when it matches the expression itself or any of
+        its kept descendants matches.
+        """
+        from .tag_filter import filter_model
+        return filter_model(self, expression)
 
     def __repr__(self):
         filename = self.parse_results.filename if self.parse_results else "unknown"
